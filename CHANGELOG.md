@@ -42,6 +42,7 @@ ctest FunctionalTestJigsawApollo to validate this output. [#5710](https://github
 - Added support for reading, writing, and viewing GeoTIFFs in ISIS. [#5618](https://github.com/DOI-USGS/ISIS3/pull/5618)
 
 ### Changed
+- Enhanced csminit by removing the need to specify model and plugin [#5585](https://github.com/DOI-USGS/ISIS3/issues/5585)
 
 ### Fixed
 - Fixed kaguyatc2isis invalid BandBin values [#5629](https://github.com/DOI-USGS/ISIS3/issues/5629)
