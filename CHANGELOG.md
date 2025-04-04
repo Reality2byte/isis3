@@ -41,6 +41,7 @@ ctest FunctionalTestJigsawApollo to validate this output. [#5710](https://github
 - Added OFFBODY and OFFBODYTRIM parameters to cam2cam. Added tests and updated documentation. [#3602] (https://github.com/DOI-USGS/ISIS3/issues/3602)
 - Added support for reading, writing, and viewing GeoTIFFs in ISIS. [#5618](https://github.com/DOI-USGS/ISIS3/pull/5618)
 - Added GDAL SRS propagation for systems outside of ISIS to display projected GTiffs. [#5736](https://github.com/DOI-USGS/ISIS3/pull/5736)
+- Added ale version to history blob. [#5207](https://github.com/DOI-USGS/ISIS3/issues/5207)
 
 ### Changed
 - Update OSIRIS-REx OCams instrument (Map, Poly, & SamCam) support to current state in UofA code base [#5426](https://github.com/DOI-USGS/ISIS3/issues/5426)
