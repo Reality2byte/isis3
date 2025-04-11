@@ -3,6 +3,7 @@
 # Define environment name and package to install
 DOWNLOAD_DATA="YES"
 CLIENT="mamba"
+FORCE_MAMBA_INSTALL="NO"  # New flag to force mamba installation
 
 # Report error and reserves error code from a failed command
 failed_command() {
@@ -51,6 +52,8 @@ print_help() {
     printf "\t                      be made at its location\n"
     printf "\t--no-data             Do not ask to download any data for the\n"
     printf "\t                      ISIS_DATA area.\n"
+    printf "\t--download-base       Download the base data without prompting the user.\n"
+    printf "\t--force-mamba         Force installation of mamba regardless of existing conda\n"
     printf "\n"
     printf "\tDefining variables on the command line will skip the\n"
     printf "\tinteractive elements within this script\n"
@@ -103,6 +106,15 @@ while [[ $# -gt 0 ]]; do
         --no-data)
             DOWNLOAD_DATA=NO
             shift # past argument
+            ;;
+        --download-base)
+            DOWNLOAD_DATA=YES
+            BASE_DATA_ONLY=YES
+            shift # past argument
+            ;;
+        --force-mamba)
+            FORCE_MAMBA_INSTALL="YES"
+            shift
             ;;
         -*|--*)
             echo "Unknown option $1"
@@ -201,36 +213,41 @@ case "$(uname)" in
         ;;
 esac
 
-# Check if conda is installed but mamba is not
+# Check if conda is installed but mamba is not, or if forced to install mamba
 if command -v conda &> /dev/null && ! command -v mamba &> /dev/null; then
-    echo "WARNING: conda is installed but mamba is not."
-    echo "mamba is a faster alternative to conda and is required for ISIS installation."
-    echo "Otherwise, environment creation will take much longer than what is practical."
-    echo "Would you like to install mamba? [yes|no]"
-    ans="yes"
-    printf "[%s] >>> " "$ans"
-    
-    read -r ans
-    
-    # If no input, use default
-    if [ "$ans" = "" ]; then
-        ans="yes"
-    fi
-    
-    ans=$(echo "${ans}" | tr '[:lower:]' '[:upper:]')
-    while [ "$ans" != "YES" ] && [ "$ans" != "NO" ]
-    do
-        echo "Please answer 'yes' or 'no':"
-        printf ">>> "
-        read -r ans
-        ans=$(echo "${ans}" | tr '[:lower:]' '[:upper:]')
-    done
-    
-    if [ "$ans" == "NO" ]; then
-        echo "Error: Only mamba is supported. Exiting."
-        exit 1
+    if [ "$FORCE_MAMBA_INSTALL" = "YES" ]; then
+        echo "Forcing mamba installation."
     else
-        echo "Will proceed with installing mamba."
+        echo "WARNING: conda is installed but mamba is not."
+        echo "mamba is a faster alternative to conda and is required for ISIS installation."
+        echo "Otherwise, environment creation will take much longer than what is practical."
+        echo "ISIS only supports mamba for installation, you can install it now to move forward."
+        echo "Would you like to install mamba? [yes|no]"
+        ans="yes"
+        printf "[%s] >>> " "$ans"
+        
+        read -r ans
+        
+        # If no input, use default
+        if [ "$ans" = "" ]; then
+            ans="yes"
+        fi
+        
+        ans=$(echo "${ans}" | tr '[:lower:]' '[:upper:]')
+        while [ "$ans" != "YES" ] && [ "$ans" != "NO" ]
+        do
+            echo "Please answer 'yes' or 'no':"
+            printf ">>> "
+            read -r ans
+            ans=$(echo "${ans}" | tr '[:lower:]' '[:upper:]')
+        done
+        
+        if [ "$ans" == "NO" ]; then
+            echo "Error: Only mamba is supported. Exiting."
+            exit 1
+        else
+            echo "Will proceed with installing mamba."
+        fi
     fi
 fi
 
@@ -269,6 +286,7 @@ if ! command -v mamba &> /dev/null; then
     fi
 
     $MINIFORGE_DIR/bin/$CLIENT init || exit 1
+    export PATH="$MINIFORGE_DIR/bin:$PATH"
 else
     echo "Miniforge is already installed."
     if [[ "$CONDA_PREFIX" == *"/envs/"* ]]; then
@@ -300,7 +318,7 @@ if [ -z "$ENV_NAME" ]; then
 fi
 
 # Check if the environment already exists 
-if $MINIFORGE_DIR/bin/$CLIENT env list | grep -qE "^$ENV_NAME[ ]."; then 
+if $CLIENT env list | grep -qE "^$ENV_NAME[ ]."; then 
     printf "\nEnvironment \"$ENV_NAME\" already exists. Not performing any updates.\n" 
     printf "To delete the old environment, use the following commands:\n\n" 
     printf "\t$ mamba deactivate\n" 
@@ -308,14 +326,16 @@ if $MINIFORGE_DIR/bin/$CLIENT env list | grep -qE "^$ENV_NAME[ ]."; then
 else
     # Create a new environment with the specified package
     echo "Creating a new environment [$ENV_NAME] and installing $PACKAGE_NAME"
-    $MINIFORGE_DIR/bin/$CLIENT create -c conda-forge -c usgs-astrogeology -n $ENV_NAME $PACKAGE_NAME=$ISIS_VERSION $LIBGL_INSTALL rclone -y || {
+    $CLIENT create -c conda-forge -c usgs-astrogeology -n $ENV_NAME $PACKAGE_NAME=$ISIS_VERSION $LIBGL_INSTALL rclone -y || {
         echo "Failed to install $PACKAGE_NAME=$ISIS_VERSION"
         echo "Seaching for $PACKAGE_NAME versions ..."
-        $MINIFORGE_DIR/bin/$CLIENT search -c conda-forge -c usgs-astrogeology $PACKAGE_NAME || failed_command "Search for $PACKAGE_NAME versions"
+        $CLIENT search -c conda-forge -c usgs-astrogeology $PACKAGE_NAME || failed_command "Search for $PACKAGE_NAME versions"
         exit 1
     }
     echo "Environment \"$ENV_NAME\" created and $PACKAGE_NAME installed."
 fi
+
+export PATH="$MINIFORGE_DIR/envs/$ENV_NAME/bin:$PATH"
 
 # If a ISISDATA_PREFIX was not set, ask the user for it
 if [ -z "$ISISDATA_PREFIX" ]; then
@@ -350,7 +370,7 @@ if [ ! -d "$ISISDATA_PREFIX" ]; then
     fi
 fi
 
-$MINIFORGE_DIR/bin/$CLIENT env config vars set -n $ENV_NAME ISISDATA=$ISISDATA_PREFIX ISISROOT=$MINIFORGE_DIR/envs/$ENV_NAME || failed_command "Mamba config var set"
+$CLIENT env config vars set -n $ENV_NAME ISISDATA=$ISISDATA_PREFIX ISISROOT=$MINIFORGE_DIR/envs/$ENV_NAME || failed_command "Mamba config var set"
 
 if [[ "$MINIFORGE_DIR" == *"/envs/$ENV_NAME"* ]]; then
     ENV_PATH="$MINIFORGE_DIR"
@@ -383,41 +403,43 @@ if [ ! "$DOWNLOAD_DATA" = "NO" ]; then
     echo "ISISDATA is required for most applications."
     echo "This will download several gigabytes of data and may take a few hours."
     echo "ISISDATA path is currently set to $ISISDATA_PREFIX"
-    echo "You can do this later, read more at:" 
-    printf "\n\thttps://astrogeology.usgs.gov/docs/how-to-guides/environment-setup-and-maintenance/isis-data-area/\n\n"
-    echo "Do you want to install base ISISDATA now? This can be done later. [yes|no]"
-    ans="no"
-    printf "[%s] >>> " "$ans"
-    read -r ans
-    
-    # If no input, use default path
-    if [ "$ans" = "" ]; then
-        ans="no"
-    fi
 
-    ans=$(echo "${ans}" | tr '[:lower:]' '[:upper:]')
-    while [ "$ans" != "YES" ] && [ "$ans" != "NO" ]
-    do
-        echo "Please answer 'yes' or 'no':"
-        printf ">>> "
-        read -r ans
-        ans=$(echo "${ans}" | tr '[:lower:]' '[:upper:]')
-    done
-
-    if [ "$ans" == "YES" ]; then
+    if [ -n "$BASE_DATA_ONLY" ]; then
         echo "[Running] downloadIsisData base $ISISDATA_PREFIX"
         $MINIFORGE_DIR/envs/$ENV_NAME/bin/downloadIsisData -n 20 base $ISISDATA_PREFIX || failed_command "ISISDATA base download"
-    fi 
+    else
+        echo "You can do this later, read more at:" 
+        printf "\n\thttps://astrogeology.usgs.gov/docs/how-to-guides/environment-setup-and-maintenance/isis-data-area/\n\n"
+        echo "Do you want to install base ISISDATA now? This can be done later. [yes|no]"
+        ans="no"
+        printf "[%s] >>> " "$ans"
+        read -r ans
+        
+        # If no input, use default path
+        if [ "$ans" = "" ]; then
+            ans="no"
+        fi
 
-    if [ "$ans" == "NO" ]; then
-        printf "\n"
-        printf "You can download base ISISDATA later with\n" 
-        printf "\tdownloadIsisData base \$ISISDATA\n"
+        ans=$(echo "${ans}" | tr '[:lower:]' '[:upper:]')
+        while [ "$ans" != "YES" ] && [ "$ans" != "NO" ]
+        do
+            echo "Please answer 'yes' or 'no':"
+            printf ">>> "
+            read -r ans
+            ans=$(echo "${ans}" | tr '[:lower:]' '[:upper:]')
+        done
+
+        if [ "$ans" == "YES" ]; then
+            echo "[Running] downloadIsisData base $ISISDATA_PREFIX"
+            $MINIFORGE_DIR/envs/$ENV_NAME/bin/downloadIsisData -n 20 base $ISISDATA_PREFIX || failed_command "ISISDATA base download"
+        fi 
+
+        if [ "$ans" == "NO" ]; then
+            printf "\n"
+            printf "You can download base ISISDATA later with\n" 
+            printf "\tdownloadIsisData base \$ISISDATA\n"
+        fi
     fi
-
-
-
-
     if [ "$ans" == "YES" ]; then
         printf "\n"
         printf "Do you want to install mission-specific ISISDATA now? This can be done later. [yes|no]\n"
