@@ -70,7 +70,7 @@
         versions.forEach(version => {
           const li = document.createElement('li');
           li.className = 'usa-sidenav__item';
-          if (currentVersion === version) {
+          if (currentVersion === version.toLowerCase()) {
             li.classList.add('usa-current');
           }
           li.innerHTML = `<a href="https://isis.astrogeology.usgs.gov/${version}/">${version}</a>`;
