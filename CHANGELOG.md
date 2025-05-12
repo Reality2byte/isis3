@@ -36,6 +36,7 @@ release.
 ## [Unreleased]
 
 ### Added
+- Added use Bullet Anaconda feedstock library, which includes double precision support, and fix ISIS use of general Bullet configurations. [#5772](https://github.com/DOI-USGS/ISIS3/pull/5772) 
 - Added Mac Arm build support and adjusted the tests appropriately.
 - Added adjusted XYZ point coordinate sigmas to the points.csv jigsaw output file. Modified
 ctest FunctionalTestJigsawApollo to validate this output. [#5710](https://github.com/DOI-USGS/ISIS3/issues/5710)
