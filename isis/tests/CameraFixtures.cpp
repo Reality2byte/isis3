@@ -992,4 +992,30 @@ namespace Isis {
     testCube.reset();
   }
 
+  void OrexManyIsdCameraCubes::SetUp() {
+    TempTestingFiles::SetUp();
+
+    m_sourcefile = "data/cam2cam/20190509T180552S020_map_iofL2b.cub";
+
+    std::ifstream isdFile("data/cam2cam/20190509T180552S020_map_iofL2b.isd");
+    std::ifstream cubeLabel("data/cam2cam/20190509T180552S020_map_iofL2b.pvl");
+
+    isdFile   >> m_isd;
+    cubeLabel >> m_label;
+  }
+
+   const QString &OrexManyIsdCameraCubes::source() const {
+    return ( m_sourcefile );
+   }
+
+   Cube *OrexManyIsdCameraCubes::make_cube( const QString &cubefile ) {
+    std::unique_ptr<Cube> testCube( new Cube );
+
+    testCube->fromIsd(tempDir.path() + "/" + cubefile, m_label, m_isd, "rw");
+    return ( testCube.release() );
+  }
+
+  void OrexManyIsdCameraCubes::TearDown() {
+    // passthru...
+  }
 }

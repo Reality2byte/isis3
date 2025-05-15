@@ -111,11 +111,6 @@ namespace Isis {
        }
     
   };
-
-
- 
-  
-
 }
 
 #endif

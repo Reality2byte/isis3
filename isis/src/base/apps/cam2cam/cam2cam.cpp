@@ -114,15 +114,15 @@ namespace Isis {
     ocube->putGroup(instgrp);
 
     // Set up the interpolator
-    Interpolator *interp = NULL;
+    std::unique_ptr<Interpolator> interp;
     if (ui.GetString("INTERP") == "NEARESTNEIGHBOR") {
-      interp = new Interpolator(Interpolator::NearestNeighborType);
+      interp.reset( new Interpolator(Interpolator::NearestNeighborType) );
     }
     else if (ui.GetString("INTERP") == "BILINEAR") {
-      interp = new Interpolator(Interpolator::BiLinearType);
+      interp.reset( new Interpolator(Interpolator::BiLinearType) );
     }
     else if (ui.GetString("INTERP") == "CUBICCONVOLUTION") {
-      interp = new Interpolator(Interpolator::CubicConvolutionType);
+      interp.reset( new Interpolator(Interpolator::CubicConvolutionType) );
     }
 
     // See if we need to deal with band dependent camera models
@@ -136,8 +136,5 @@ namespace Isis {
 
     // Cleanup
     delete transform;
-    delete interp;
   }
-
-
 }

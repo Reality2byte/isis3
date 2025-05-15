@@ -36,11 +36,11 @@ release.
 ## [Unreleased]
 
 ### Added
-- Added use Bullet Anaconda feedstock library, which includes double precision support, and fix ISIS use of general Bullet configurations. [#5772](https://github.com/DOI-USGS/ISIS3/pull/5772) 
+- Added OFFBODY and OFFBODYTRIM parameters to noproj and cam2cam. Added tests and updated documentation. [#3602](https://github.com/DOI-USGS/ISIS3/issues/3602)
+- Added use Bullet Anaconda feedstock library, which includes double precision support, and fix ISIS use of general Bullet configurations. [#5772](https://github.com/DOI-USGS/ISIS3/pull/5772)
 - Added Mac Arm build support and adjusted the tests appropriately.
 - Added adjusted XYZ point coordinate sigmas to the points.csv jigsaw output file. Modified
 ctest FunctionalTestJigsawApollo to validate this output. [#5710](https://github.com/DOI-USGS/ISIS3/issues/5710)
-- Added OFFBODY and OFFBODYTRIM parameters to cam2cam. Added tests and updated documentation. [#3602] (https://github.com/DOI-USGS/ISIS3/issues/3602)
 - Added support for reading, writing, and viewing GeoTIFFs in ISIS. [#5618](https://github.com/DOI-USGS/ISIS3/pull/5618)
 - Added GDAL SRS propagation for systems outside of ISIS to display projected GTiffs. [#5736](https://github.com/DOI-USGS/ISIS3/pull/5736)
 - Added ale version to history blob. [#5207](https://github.com/DOI-USGS/ISIS3/issues/5207)
