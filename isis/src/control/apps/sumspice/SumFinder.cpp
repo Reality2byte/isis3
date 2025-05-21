@@ -27,7 +27,9 @@ find files of those names at the top level of this repository. **/
 #include "IString.h"
 #include "Kernels.h"
 #include "NaifStatus.h"
+#include "Preference.h"
 #include "Progress.h"
+#include "spiceql.h"
 #include "History.h"
 #include "Application.h"
 
@@ -508,16 +510,17 @@ namespace Isis {
     iTime newStartClock(sumStartTime() - startExposureDelay(*m_cube));
     iTime newStopClock(sumStopTime()   + stopExposureDelay(*m_cube));
 
+    bool useWeb = QString(Preference::Preferences().findGroup("WebSpice")["UseWebSpice"]).toUpper() == "TRUE";
+
     // Compute start SCLK if present on labels
     if ( origStartClock.size() > 0 ) {
       NaifStatus::CheckErrors();
-      char newSCLK[256];
-      sce2s_c(camera->naifSclkCode(), newStartClock.Et(),
-              sizeof(newSCLK), newSCLK);
+      auto [newSCLK, kernels] = SpiceQL::doubleEtToSclk(camera->naifSclkCode(), newStartClock.Et(), SpiceQL::spiceql_mission_map[(camera->instrumentId()).toStdString()], useWeb);
+
       NaifStatus::CheckErrors();
 
       sumtStartClock.addValue(origStartClock[0], origStartClock.unit());
-      origStartClock.setValue(QString(newSCLK), origStartClock.unit());
+      origStartClock.setValue(QString::fromStdString(newSCLK), origStartClock.unit());
 
       setKeyword(origStartClock, instGrp);
       setKeyword(sumtStartClock, sumtGrp);
@@ -527,13 +530,11 @@ namespace Isis {
     // Compute end SCLK if present on labels
     if ( origStopClock.size() > 0 ) {
       NaifStatus::CheckErrors();
-      char newSCLK[256];
-      sce2s_c(camera->naifSclkCode(), newStopClock.Et(),
-              sizeof(newSCLK), newSCLK);
+      auto [newSCLK, kernels] = SpiceQL::doubleEtToSclk(camera->naifSclkCode(), newStopClock.Et(), SpiceQL::spiceql_mission_map[(camera->instrumentId()).toStdString()], useWeb);
       NaifStatus::CheckErrors();
 
       sumtStopClock.addValue(origStopClock[0], origStopClock.unit());
-      origStopClock.setValue(QString(newSCLK), origStopClock.unit());
+      origStopClock.setValue(QString::fromStdString(newSCLK), origStopClock.unit());
 
       setKeyword(origStopClock, instGrp);
       setKeyword(sumtStopClock, sumtGrp);

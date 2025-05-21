@@ -19,6 +19,8 @@ find files of those names at the top level of this repository. **/
 #include "IString.h"
 #include "iTime.h"
 #include "NaifStatus.h"
+#include "Preference.h"
+#include "spiceql.h"
 #include "Spice.h"
 
 /**
@@ -52,41 +54,6 @@ namespace Isis {
   }
 
   /**
-   * @brief Load required NAIF kernels required for timing needs
-   *
-   * This method maintains the loading of kernels for MESSENGER timing and
-   * planetary body ephemerides to support time and relative positions of planet
-   * bodies.
-   */
-  static void loadNaifTiming() {
-    static bool naifLoaded = false;
-    if (!naifLoaded) {
-      //  Load the NAIF kernels to determine timing data
-      Isis::FileName leapseconds("$base/kernels/lsk/naif????.tls");
-      leapseconds = leapseconds.highestVersion();
-
-      Isis::FileName sclk("$messenger/kernels/sclk/messenger_????.tsc");
-      sclk = sclk.highestVersion();
-
-      Isis::FileName pck("$base/kernels/spk/de???.bsp");
-      pck = pck.highestVersion();
-
-      //  Load the kernels
-      QString leapsecondsName(leapseconds.expanded());
-      QString sclkName(sclk.expanded());
-      QString pckName(pck.expanded());
-      furnsh_c(leapsecondsName.toLatin1().data());
-      furnsh_c(sclkName.toLatin1().data());
-      furnsh_c(pckName.toLatin1().data());
-
-      //  Ensure it is loaded only once
-      naifLoaded = true;
-    }
-    return;
-  }
-
-
-  /**
    * @brief Computes the distance from the Sun to the observed body
    *
    * This method requires the appropriate NAIK kernels to be loaded that
@@ -108,25 +75,27 @@ namespace Isis {
       try {
         //  Ensure NAIF kernels are loaded
         NaifStatus::CheckErrors();
-        loadNaifTiming();
         sunDist = 1.0;
         
+        bool useWeb = QString(Preference::Preferences().findGroup("WebSpice")["UseWebSpice"]).toUpper() == "TRUE";
+
         //  Determine if the target is a valid NAIF target
-        SpiceInt tcode;
-        SpiceBoolean found;
-        bodn2c_c(target.toLatin1().data(), &tcode, &found);
-        if (!found) return (false);
+        try{
+          SpiceQL::translateNameToCode(target.toLatin1().data(), "mdis", useWeb);
+        }catch(std::invalid_argument){
+          return false;
+        }
+
         
         //  Convert starttime to et
-        double obsStartTime;
-        scs2e_c(-236, scStartTime.toLatin1().data(), &obsStartTime);
-        NaifStatus::CheckErrors();
+        auto [obsStartTime, k1] = SpiceQL::strSclkToEt(-236, scStartTime.toLatin1().data(), "mdis", useWeb);
         
         //  Get the vector from target to sun and determine its length
         double sunv[3];
-        double lt;
-        spkpos_c(target.toLatin1().data(), obsStartTime, "J2000", "LT+S", "sun",
-                        sunv, &lt);
+        std::vector<double> etStart = {obsStartTime};
+        auto [sunLt, k2] = SpiceQL::getTargetStates(etStart, target.toLatin1().data(), "sun", "J2000", "LT+S", "mdis", {"reconstructed"}, {"reconstructed"}, useWeb);
+        std::copy(sunLt[0].begin(), sunLt[0].begin()+3, sunv);
+
         double sunkm = vnorm_c(sunv);
         
         //  Return in AU units
@@ -395,6 +364,8 @@ namespace Isis {
     }
 
     double obsStartTime = 0.0;
+    nlohmann::json kernels = {};
+
     try {
       Camera *cam = cube->camera();
       obsStartTime = cam->getClockTime(scStartTime, -236).Et();
@@ -403,12 +374,11 @@ namespace Isis {
       try {
         // Ensure NAIF kernels are loaded for NAIF time computations
         NaifStatus::CheckErrors();
-        loadNaifTiming();
+
+        bool useWeb = QString(Preference::Preferences().findGroup("WebSpice")["UseWebSpice"]).toUpper() == "TRUE";
 
         //  Convert s/c clock start time to et
-        scs2e_c(-236, scStartTime.toLatin1().data(), &obsStartTime);
-        NaifStatus::CheckErrors();
-
+        tie(obsStartTime, kernels) = SpiceQL::strSclkToEt(-236, scStartTime.toLatin1().data(), "mdis", useWeb);
       } 
       catch (IException &e) {
         QString message = "Could not convert spacecraft clock start count to ET.";
