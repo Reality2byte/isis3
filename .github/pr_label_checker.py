@@ -12,7 +12,7 @@ GITHUB_API_URL=os.environ["GITHUB_API_URL"]
 GITHUB_SERVER_URL=os.environ["GITHUB_SERVER_URL"]
 GITHUB_SHA=os.environ["GITHUB_SHA"]
 
-REPO_URL_PATH='DOI-USGS/ISIS3'
+REPO_URL_PATH='DOI-USGS/ISIS3' #for a fork, use 'your-username/ISIS3'
 API_BASE_URL=f'{GITHUB_API_URL}/repos/{REPO_URL_PATH}'
 API_PULLS_URL=f'{API_BASE_URL}/pulls'
 API_COMMITS_URL=f'{API_BASE_URL}/commits'
@@ -25,6 +25,7 @@ HEADERS = {
 }
 
 BUGFIX_CHANGE_TYPE = False
+ENHANCEMENT_CHANGE_TYPE = False
 
 def get_prs_associated_with_commit() -> Response:
     """
@@ -85,8 +86,11 @@ def search_for_linked_issues(pull_body: str) -> list:
             if matched_items:
                 global BUGFIX_CHANGE_TYPE
                 BUGFIX_CHANGE_TYPE = True
+            matched_items = rgx.findall(r'\[(x|X)\] New feature', section)
+            if matched_items:
+                global ENHANCEMENT_CHANGE_TYPE
+                ENHANCEMENT_CHANGE_TYPE = True
     return issue_numbers
-
 
 def get_linked_issues(issue_numbers: list) -> list:
     """
@@ -163,6 +167,20 @@ def is_pr_bugfix(response: Response) -> bool:
             return True
     return False
 
+def is_pr_enhancement(response: Response) -> bool:
+    """
+    Check PR label for 'enhancement', 
+    or if ENHANCEMENT_CHANGE_TYPE is set true
+    """
+    if ENHANCEMENT_CHANGE_TYPE:
+        return True
+    labels = response.json().get("labels")
+    for label in labels:
+        if label.get("name") == "enhancement":
+            return True
+    return False
+    
+
 if __name__ == "__main__":
     try:
         # Update PR labels
@@ -175,9 +193,14 @@ if __name__ == "__main__":
             if combined_issue_labels:
                 update_pr_labels(pull_number, combined_issue_labels)
 
-        # Check if PR is a bugfix
+        # Check if PR is a bugfix and/or enhancement
         response = get_pr(pull_number)
-        print(is_pr_bugfix(response))
+        results_str = 'change_types_'
+        if is_pr_bugfix(response):
+            results_str += 'bugfix_'
+        if is_pr_bugfix(response) or is_pr_enhancement(response):
+            results_str += 'production_update_'
+        print(results_str)
     except (HTTPError, RequestException):
         raise
 
