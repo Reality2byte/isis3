@@ -68,6 +68,7 @@ ctest FunctionalTestJigsawApollo to validate this output. [#5710](https://github
 - In Application.cpp, converted initialization environmental variable shell commands and file read to c commands. [#5906](https://github.com/DOI-USGS/ISIS3/pull/5906)
 - Improved the Conda Bullet CMAKE configuration in FindBulletFloat64.cmake. Adds the Bullet::Bullet_double target to ALLLIBS. [#5899](https://github.com/DOI-USGS/ISIS3/issues/5899)
 - Changed 'jigsaw' attribute type to account for Linux compiler changes [#5904](https://github.com/DOI-USGS/ISIS3/pull/5904)
+- Updated GDAL to 3.12 and QT to 6.X [#5909](https://github.com/DOI-USGS/ISIS3/pull/5909)
 
 
 ### Fixed
@@ -98,6 +99,8 @@ ctest FunctionalTestJigsawApollo to validate this output. [#5710](https://github
 - Fixed `BundleObservationSolveSettings` to properly read empty solve setting xmls [#5822](https://github.com/DOI-USGS/ISIS3/pull/5822)
 - Fixed `footprintinit` to find mapping group (no caps). [#5920](https://github.com/DOI-USGS/ISIS3/pull/5820)
 
+### Removed
+- QT 6 removed MySQL support so MySQL is no longer supported in `isisminer` [#5909](https://github.com/DOI-USGS/ISIS3/pull/5909)
 
 ## [9.0.0] - 09-25-2024
 
