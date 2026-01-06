@@ -45,6 +45,7 @@ build:
 # Shotgun strat on requirements until we can narrow them down
 requirements:
   build:
+   - {{ stdlib("c") }}
    - ale >=1.0.2,<2
    - aom
    - armadillo
