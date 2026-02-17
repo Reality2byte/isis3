@@ -63,6 +63,8 @@ namespace Isis {
 
       QString Type() const;
       QString Name() const;
+      QString Key() const;
+      int StartByte() const;
       int Size() const;
       PvlObject &Label();
 
@@ -72,12 +74,9 @@ namespace Isis {
                 const std::vector<PvlKeyword> keywords = std::vector<PvlKeyword>());
       virtual void Read(const Pvl &pvl, std::istream &is,
                         const std::vector<PvlKeyword> keywords = std::vector<PvlKeyword>());
-      void ReadData(std::string &hexdata);
-
       void Write(const QString &file);
-      void Write(Pvl &pvl, std::fstream &stm,
-                 const QString &detachedFileName = "", bool overwrite=true, bool inline_data=true);
-      void WriteGdal(GDALDataset *dataset);
+      void Write(Pvl &pvl, std::fstream &stm);
+      void WriteGdal(std::string &json);
       void ReadGdal(GDALDataset *dataset);
 
       char *getBuffer();
@@ -88,9 +87,10 @@ namespace Isis {
       void Find(const Pvl &pvl, const std::vector<PvlKeyword> keywords = std::vector<PvlKeyword>());
       virtual void ReadInit();
       virtual void ReadData(std::istream &is);
+      void ReadData(std::string &hexdata);
       virtual void WriteInit();
       virtual void WriteData(std::fstream &os);
-      virtual void WriteData(std::stringstream &os);
+      void WriteData(std::stringstream &os);
 
       PvlObject p_blobPvl;     //!< Pvl Blob object
       QString p_blobName;  //!< Name of the Blob object

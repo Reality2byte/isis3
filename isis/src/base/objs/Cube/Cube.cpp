@@ -721,6 +721,8 @@ namespace Isis {
         band->SetOffset(base());
         band->SetNoDataValue(noDataValue);
         band->Fill(noDataValue);
+        band->CreateMaskBand(GMF_ALPHA);
+        band->GetMaskBand()->Fill(255);
       }
       GDALClose(dataset);
       CSLDestroy( papszOptions );
@@ -1044,17 +1046,24 @@ namespace Isis {
       throw IException(IException::Programmer, msg, _FILEINFO_);
     }
 
+    QMutexLocker locker(m_mutex);
+
     FileName cubeFile = *m_labelFileName;
     if (m_tempCube)
       cubeFile = *m_tempCube;
 
-    if (format() == Format::GTiff && labelsAttached() == LabelAttachment::AttachedLabel) {
-      blob.ReadGdal(gdalDataset());
+    QString blobKey = blob.Key();
+    if (m_blobMap.contains(blobKey)) {
+      blob = m_blobMap[blobKey];
     }
     else {
-      QMutexLocker locker(m_mutex);
-      QMutexLocker locker2(m_ioHandler->dataFileMutex());
-      blob.Read(cubeFile.toString(), *label(), keywords);
+      if (format() == Format::GTiff && labelsAttached() == LabelAttachment::AttachedLabel) {
+        blob.ReadGdal(gdalDataset());
+      }
+      else {
+        QMutexLocker locker2(m_ioHandler->dataFileMutex());
+        blob.Read(cubeFile.toString(), *label(), keywords);
+      }
     }
   }
 
@@ -1213,64 +1222,43 @@ namespace Isis {
       throw IException(IException::Programmer, msg, _FILEINFO_);
     }
 
-    if (m_format == Format::GTiff && labelsAttached() == LabelAttachment::AttachedLabel) {  
-      // write new type of blob
-      blob.WriteGdal(gdalDataset());
-      return; // nothing else to do
-    }
-
-    if (!m_labelFile->isWritable()) {
+    if (isReadOnly()) {
       string msg = "The cube must be opened in read/write mode, not readOnly";
       throw IException(IException::Programmer, msg, _FILEINFO_);
     }
 
-    // Write an attached blob
-    if (labelsAttached() != LabelAttachment::DetachedLabel) {
-      QMutexLocker locker(m_mutex);
-      QMutexLocker locker2(m_ioHandler->dataFileMutex());
+    QMutexLocker locker(m_mutex);
 
-      // Compute the number of bytes in the cube + label bytes and if the
-      // endpos of the file // is not greater than this then seek to that position.
-      fstream stream(m_labelFileName->expanded().toLatin1().data(),
-                     ios::in | ios::out | ios::binary);
-      stream.seekp(0, ios::end);
-
-      // End byte = end byte of the file (aka eof position, file size)
-      streampos endByte = stream.tellp();
-      // maxbyte = position after the cube DN data and labels
-      streampos maxbyte = (streampos) m_labelBytes;
-
-      if (labelsAttached() != ExternalLabel) {
-        maxbyte += (streampos) m_ioHandler->getDataSize();
-      }
-
-      // If EOF is too early, allocate space up to where we want the blob
-      if (endByte < maxbyte) {
-        stream.seekp(maxbyte, ios::beg);
-      }
-
-      // Use default argument of "" for detached stream
-      blob.Write(*m_label, stream, "", overwrite);
+    Pvl &cubeLabel = *label();
+    PvlObject &blobLabel = blob.Label();
+    if (labelsAttached() == LabelAttachment::DetachedLabel) {
+        FileName blobFileName = fileName();
+        blobFileName = blobFileName.removeExtension();
+        blobFileName = blobFileName.addExtension(blob.Type());
+        blobFileName = blobFileName.addExtension(blob.Name());
+        blobLabel += PvlKeyword("^" + blob.Type(), blobFileName.name());
     }
 
-    // Write a detached
-    else {
-      FileName blobFileName = fileName();
-      blobFileName = blobFileName.removeExtension();
-      blobFileName = blobFileName.addExtension(blob.Type());
-      blobFileName = blobFileName.addExtension(blob.Name());
-      QString blobFile(blobFileName.expanded());
-      ios::openmode flags = ios::in | ios::binary | ios::out | ios::trunc;
-      fstream detachedStream;
-      detachedStream.open(blobFile.toLatin1().data(), flags);
-      if (!detachedStream) {
-        QString message = "Unable to open data file [" +
-                          blobFileName.expanded() + "]";
-        throw IException(IException::Io, message, _FILEINFO_);
+    // See if the blob is already in the file
+    bool found = false;
+    if (overwrite) {
+      for (int i = 0; i < cubeLabel.objects(); i++) {
+        if (cubeLabel.object(i).name() == blobLabel.name()) {
+          PvlObject &obj = cubeLabel.object(i);
+          if ((QString)obj["Name"] == (QString)blobLabel["Name"]) {
+            found = true;
+            blobLabel["StartByte"] = obj["StartByte"];
+            blobLabel["Bytes"] = obj["Bytes"];
+          }
+        }
       }
-
-      blob.Write(*m_label, detachedStream, blobFileName.name());
     }
+    if (!found) {
+      blobLabel["StartByte"] = toString(0);
+      cubeLabel.addObject(blobLabel);
+    }
+    m_blobMap[blob.Key()] = blob;
+    m_blobQueue.push_back(blob.Key());
   }
 
 
@@ -2215,6 +2203,28 @@ namespace Isis {
       if (obj.name().compare(BlobType) == 0) {
         if (obj.findKeyword("Name")[0] == BlobName) {
           m_label->deleteObject(i);
+          QString key = BlobType + "_" + BlobName;
+
+          if (gdalDataset()) {
+            CPLStringList metadata = CPLStringList(gdalDataset()->GetMetadata("json:ISIS3"), false);
+            const char *metadataJsonString = metadata[0];
+            nlohmann::ordered_json jsonblob = nlohmann::ordered_json::parse(metadataJsonString);
+
+            bool keyErased = jsonblob.erase(key.toStdString());
+            string jsonblobstr = jsonblob.dump();
+
+            char **outputMetadata = new char*[1];
+            outputMetadata[0] = jsonblobstr.data();
+            gdalDataset()->SetMetadata(outputMetadata, "json:ISIS3");
+            delete []outputMetadata;
+            
+            return keyErased;
+          }
+
+          if (m_blobMap.contains(key)) {
+            m_blobMap.remove(key);
+            m_blobQueue.removeOne(key);
+          }
           return true;
         }
       }
@@ -2274,16 +2284,8 @@ namespace Isis {
    * @return bool True if the BLOB was found
    */
   bool Cube::hasBlob(const QString &name, const QString &type) {
-    if (gdalDataset()) {
-      string key = type.toStdString() + "_" + name.toStdString();
-      const char *jsonblobStr = gdalDataset()->GetMetadataItem(key.c_str(), "USGS");
+    QMutexLocker locker(m_mutex);
 
-      if (jsonblobStr) {
-        return true;
-      }
-      return false;
-    }
-    
     for(int o = 0; o < label()->objects(); o++) {
       PvlObject &obj = label()->object(o);
       if (obj.isNamed(type)) {
@@ -2911,19 +2913,48 @@ namespace Isis {
       string msg = "Cube must be opened first before writing labels";
       throw IException(IException::Programmer, msg, _FILEINFO_);
     }
+
+    if (isReadOnly()) {
+      string msg = "The cube must be opened in read/write mode, not readOnly";
+      throw IException(IException::Programmer, msg, _FILEINFO_);
+    }
     
-    if (m_format == Format::GTiff && labelsAttached() == LabelAttachment::AttachedLabel) { 
+    if (m_format == Format::GTiff) {
+
+      nlohmann::ordered_json jsonOut;
+
+      // Check for existing data, if there is data update it
+      CPLStringList metadata = CPLStringList(gdalDataset()->GetMetadata("json:ISIS3"), false);
+
+      if (metadata[0] != nullptr) {
+        const char *metadataJsonString = metadata[0];
+        jsonOut = nlohmann::ordered_json::parse(metadataJsonString);
+      }
+
       // update metadata
       nlohmann::ordered_json jsonblob = this->label()->toJson()["Root"];
-      nlohmann::ordered_json jsonOut;
       for (auto& [key, val] : jsonblob.items()) {
         if (!val.contains("Bytes") || key == "Label") {
           jsonOut[key] = val;
         }
       }
-      std::string jsonblobstr = jsonOut.dump();
-      std::string name = "CubeLabel";
-      gdalDataset()->SetMetadataItem(name.c_str(), jsonblobstr.c_str(), "USGS");
+
+      for (QString blobKey : m_blobQueue) {
+        Blob &blob = m_blobMap[blobKey];
+
+        std::string blobJsonStr = "{}";
+        blob.WriteGdal(blobJsonStr);
+        nlohmann::ordered_json blobJson = nlohmann::ordered_json::parse(blobJsonStr);
+        jsonOut.update(blobJson);
+      }
+      m_blobMap.clear();
+      m_blobQueue.clear();
+      std::string jsonOutStr = jsonOut.dump();
+
+      char ** outputMetadata = new char*[1];
+      outputMetadata[0] = jsonOutStr.data();
+      gdalDataset()->SetMetadata(outputMetadata, "json:ISIS3");
+      delete []outputMetadata;
 
       if (this->label()->findObject("IsisCube").hasGroup("Mapping")) {
         PvlGroup &mappingGroup = this->label()->findObject("IsisCube").findGroup("Mapping");
@@ -2955,14 +2986,76 @@ namespace Isis {
     // Set the pvl's format template
     m_label->setFormatTemplate(m_formatTemplateFile->original());
 
-    // Write them with attached data
+    // Write them with attached label and blob data
     if (labelsAttached() != LabelAttachment::DetachedLabel) {
       QMutexLocker locker(m_mutex);
       QMutexLocker locker2(m_ioHandler->dataFileMutex());
 
+      // Compute the number of bytes in the cube + label bytes and if the
+      // endpos of the file // is not greater than this then seek to that position.
+      fstream stream(m_labelFileName->expanded().toLatin1().data(),
+                     ios::in | ios::out | ios::binary);
+
+      // maxbyte = position after the cube DN data and labels
+      streampos maxbyte = (streampos) m_labelBytes;
+
+      if (labelsAttached() == LabelAttachment::AttachedLabel) {
+        maxbyte += (streampos) m_ioHandler->getDataSize();
+      }
+      for (QString blobKey : m_blobQueue) {
+        Blob &blob = m_blobMap[blobKey];
+
+        stream.seekp(0, ios::end);
+
+        // End byte = end byte of the file (aka eof position, file size)
+        streampos endByte = stream.tellp();
+
+        // If EOF is too early, allocate space up to where we want the blob
+        if (endByte < maxbyte) {
+          stream.seekp(maxbyte, ios::beg);
+        }
+
+        streampos eofbyte = stream.tellp();
+        eofbyte += 1;
+
+        PvlObject &blobLabel = blob.Label();
+
+        BigInt oldSbyte = blobLabel["StartByte"];
+        int oldNbytes = (int) blobLabel["Bytes"];
+
+        if (oldSbyte == 0) {
+          blobLabel["StartByte"] = toString((BigInt)eofbyte);
+        }
+        else {
+          // Does it fit in the old space
+          if (blob.Size() <= oldNbytes) {
+            stream.seekp(oldSbyte - 1, ios::beg);
+          }
+          // Was the old space at the end of the file
+          else if ((oldSbyte + oldNbytes) == eofbyte) {
+            stream.seekp(oldSbyte - 1, ios::beg);
+          }
+        }
+
+        // Use default argument of "" for detached stream
+        try {
+          blob.Write(*label(), stream);
+        }
+        catch (IException &e) {
+          QString msg = "Failed to write blob [" + blob.Type() + ", " + blob.Name() + "]";
+          throw IException(e, IException::Io, msg, _FILEINFO_);
+          stream.close();
+        }
+        stream.flush();
+      }
+      m_blobMap.clear();
+      m_blobQueue.clear();
+      stream.close();
+
       ostringstream temp;
       temp << *m_label << endl;
       string tempstr = temp.str();
+
       if ((int) tempstr.length() <= m_labelBytes) {
         QByteArray labelArea(m_labelBytes, '\0');
         QByteArray labelUnpaddedContents(tempstr.c_str(), tempstr.length());
@@ -2980,9 +3073,36 @@ namespace Isis {
         throw IException(IException::Io, msg, _FILEINFO_);
       }
     }
-
     // or detached label
     else {
+      for (QString blobKey : m_blobQueue) {
+        Blob &blob = m_blobMap[blobKey];
+
+        FileName blobFileName(blob.Label().findKeyword("^" + blob.Type())[0]);
+        QString blobFile(blobFileName.expanded());
+        ios::openmode flags = ios::in | ios::binary | ios::out | ios::trunc;
+        fstream detachedStream;
+        detachedStream.open(blobFile.toLatin1().data(), flags);
+        if (!detachedStream) {
+          QString message = "Unable to open data file [" +
+                            blobFileName.expanded() + "]";
+          throw IException(IException::Io, message, _FILEINFO_);
+        }
+
+        try {
+          blob.Write(*label(), detachedStream);
+        }
+        catch (IException &e) {
+          QString msg = "Failed to write blob [" + blob.Type() + ", " + blob.Name() + "]";
+          throw IException(e, IException::Io, msg, _FILEINFO_);
+          detachedStream.close();
+        }
+        detachedStream.flush();
+        detachedStream.close();
+      }
+      m_blobMap.clear();
+      m_blobQueue.clear();
+
       m_label->write(m_labelFileName->expanded());
     }
   }
