@@ -547,4 +547,3 @@ int main(int argc, char *argv[]) {
 void ReportError(QString err) {
   cout << err << endl;
 }
-
