@@ -175,7 +175,7 @@ jobs:
         run: |
           mkdir build
           cd build
-          cmake -GNinja -DJP2KFLAG=OFF ../isis
+          cmake -GNinja ../isis
           ninja -j8
       - name: Successful Cherry Pick - Auto Push to LTS
         if: steps.cherryPickStep.outcome == 'success'
