@@ -805,6 +805,21 @@
                the <b>ShapeModel</b> keyword.
             </description>
           </option>
+          <option value="WEB">
+            <brief>Retrieve shape models from ISIS STAC APIs</brief>
+            <description>
+              Retrieves a global DEM GeoTIFF from the ISIS STAC API and uses it as the shape model.
+
+              If no web-based shape models are available, spiceinit will fall
+              back to using SYSTEM to search for a shape model in the local
+              data area.
+
+              The resulting ShapeModel will be written to the cube label
+              in the Kernels Group under the <b>ShapeModel</b> keyword.
+              For web-based models, this will typically be a /vsicurl/ URL
+              pointing to a GeoTIFF in cloud storage.
+            </description>
+          </option>
         </list>
       </parameter>
 

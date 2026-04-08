@@ -72,6 +72,15 @@ EndGroup
 #EndGroup
 
 ########################################################
+# For Future Work: 
+# Not currently being implemented in code but used in tests
+########################################################
+
+Group = ShapeModelWeb
+ URL = "https://stac.astrogeology.usgs.gov/api/search/"
+EndGroup
+
+########################################################
 # Customize how session logging is handled
 #
 # TerminalOutput = On | Off
