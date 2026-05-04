@@ -87,6 +87,25 @@ void sanitize(std::string &input);
 
 
   /**
+   * Construct a CSMCamera from an already-constructed CSM model. The model
+   * pointer is left unmanaged (pre-existing issue).
+   * This avoids the model->state->model round-trip in CreateFromIsd.
+   *
+   * @param cube The cube with the image data
+   * @param model The CSM RasterGM model
+   */
+  CSMCamera::CSMCamera(Cube &cube, csm::RasterGM *model) : Camera(cube) {
+    if (!model) {
+      QString msg = "Null CSM model pointer passed to CSMCamera for image ["
+                    + cube.fileName() + "].";
+      throw IException(IException::Programmer, msg, _FILEINFO_);
+    }
+    m_model = model;
+    initFromModel(cube);
+  }
+
+
+  /**
    * Init method which performs most of the setup for the CSM Camera Model inside ISIS.
    *
    * @param cube The cube with the image data
@@ -118,7 +137,17 @@ void sanitize(std::string &input);
       QString msg = "Failed to convert CSM Model to RasterGM.";
       throw IException(IException::Programmer, msg, _FILEINFO_);
     }
+    initFromModel(cube);
+  }
 
+
+  /**
+   * Set up CSMCamera metadata from an already-assigned m_model.
+   * Extracts sensor/platform names, reference time, and target.
+   *
+   * @param cube The cube with the image data (for target setup)
+   */
+  void CSMCamera::initFromModel(Cube &cube) {
     m_instrumentNameLong = QString::fromStdString(m_model->getSensorIdentifier());
     m_instrumentNameShort = QString::fromStdString(m_model->getSensorIdentifier());
     m_spacecraftNameLong = QString::fromStdString(m_model->getPlatformIdentifier());
