@@ -216,7 +216,13 @@ void sanitize(std::string &input);
     if (!m_et) {
       m_et = new iTime();
     }
-    *m_et = m_refTime + m_model->getImageTime(imagePt);
+    // Catch CSM model exceptions
+    try {
+      *m_et = m_refTime + m_model->getImageTime(imagePt);
+    }
+    catch (csm::Error &e) {
+      return false;
+    }
     if (target()->isSky()) {
       target()->shape()->setHasIntersection(false);
       return true;
@@ -911,16 +917,21 @@ void sanitize(std::string &input);
    * @returns @b double The phase angle in degrees
    */
   double CSMCamera::PhaseAngle() const {
-    csm::EcefCoord groundPt = isisToCsmGround(GetSurfacePoint());
-    csm::EcefVector sunEcefVec = m_model->getIlluminationDirection(groundPt);
-    // ISIS wants the position of the sun, not just the vector from the ground
-    // point to the sun. So, we approximate this by adding in the ground point.
-    // ISIS wants this in Km so convert
-    std::vector<double> sunVec = {
-        (groundPt.x - sunEcefVec.x) / 1000.0,
-        (groundPt.y - sunEcefVec.y) / 1000.0,
-        (groundPt.z - sunEcefVec.z) / 1000.0};
-    return target()->shape()->phaseAngle(sensorPositionBodyFixed(), sunVec);
+    try {
+      csm::EcefCoord groundPt = isisToCsmGround(GetSurfacePoint());
+      csm::EcefVector sunEcefVec = m_model->getIlluminationDirection(groundPt);
+      // ISIS wants the position of the sun, not just the vector from the ground
+      // point to the sun. So, we approximate this by adding in the ground point.
+      // ISIS wants this in Km so convert
+      std::vector<double> sunVec = {
+          (groundPt.x - sunEcefVec.x) / 1000.0,
+          (groundPt.y - sunEcefVec.y) / 1000.0,
+          (groundPt.z - sunEcefVec.z) / 1000.0};
+      return target()->shape()->phaseAngle(sensorPositionBodyFixed(), sunVec);
+    }
+    catch (csm::Error &e) {
+      return Isis::Null;
+    }
   }
 
 
@@ -930,7 +941,12 @@ void sanitize(std::string &input);
    * @returns @b double The emission angle in degrees
    */
   double CSMCamera::EmissionAngle() const {
-    return target()->shape()->emissionAngle(sensorPositionBodyFixed());
+    try {
+      return target()->shape()->emissionAngle(sensorPositionBodyFixed());
+    }
+    catch (csm::Error &e) {
+      return Isis::Null;
+    }
   }
 
 
@@ -940,16 +956,21 @@ void sanitize(std::string &input);
    * @returns @b double The incidence angle in degrees
    */
   double CSMCamera::IncidenceAngle() const {
-    csm::EcefCoord groundPt = isisToCsmGround(GetSurfacePoint());
-    csm::EcefVector sunEcefVec = m_model->getIlluminationDirection(groundPt);
-    // ISIS wants the position of the sun, not just the vector from the ground
-    // point to the sun. So, we approximate this by adding in the ground point.
-    // ISIS wants this in Km so convert
-    std::vector<double> sunVec = {
-        (groundPt.x - sunEcefVec.x) / 1000.0,
-        (groundPt.y - sunEcefVec.y) / 1000.0,
-        (groundPt.z - sunEcefVec.z) / 1000.0};
-    return target()->shape()->incidenceAngle(sunVec);
+    try {
+      csm::EcefCoord groundPt = isisToCsmGround(GetSurfacePoint());
+      csm::EcefVector sunEcefVec = m_model->getIlluminationDirection(groundPt);
+      // ISIS wants the position of the sun, not just the vector from the ground
+      // point to the sun. So, we approximate this by adding in the ground point.
+      // ISIS wants this in Km so convert
+      std::vector<double> sunVec = {
+          (groundPt.x - sunEcefVec.x) / 1000.0,
+          (groundPt.y - sunEcefVec.y) / 1000.0,
+          (groundPt.z - sunEcefVec.z) / 1000.0};
+      return target()->shape()->incidenceAngle(sunVec);
+    }
+    catch (csm::Error &e) {
+      return Isis::Null;
+    }
   }
 
 
