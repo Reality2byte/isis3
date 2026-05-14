@@ -23,7 +23,7 @@ protected:
 
   void SetUp() override {
     TempTestingFiles::SetUp();
-    testDataDir = "data/equalizer";
+    testDataDir = QString(_SOURCE_PREFIX) + "/data/equalizer";
   }
 
   // Helper: Create fromlist file from local test data
@@ -34,7 +34,7 @@ protected:
     QTextStream out(&file);
 
     for (const QString& name : cubeNames) {
-      QString fullPath = FileName("$ISISROOT/../isis/tests/" + testDataDir + "/" + name).expanded();
+      QString fullPath = testDataDir + "/" + name;
       out << fullPath << "\n";
     }
     file.close();
@@ -49,7 +49,7 @@ protected:
     QTextStream out(&file);
 
     for (const QString& name : cubeNames) {
-      QString fullPath = FileName("$ISISROOT/../isis/tests/" + testDataDir + "/" + name).expanded();
+      QString fullPath = testDataDir + "/" + name;
       out << fullPath << "\n";
     }
     file.close();
