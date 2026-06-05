@@ -212,6 +212,14 @@ namespace Isis {
    * @param frameCode The integer-valued frame code
    */
   void SpiceRotation::SetFrame(int frameCode) {
+    // If the frame is changing AND the chain has already been cached
+    // by a previous LoadCache, invalidate the cached chain so that the
+    // next LoadCache re-runs FrameTrace from the new frame.
+    if (!p_constantFrames.empty() && p_constantFrames[0] != frameCode &&
+        !p_timeFrames.empty()) {
+      p_timeFrames.clear();
+      p_TC.clear();
+    }
     p_constantFrames[0] = frameCode;
   }
 
