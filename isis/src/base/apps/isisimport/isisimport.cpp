@@ -349,18 +349,20 @@ namespace Isis {
     ProcessImport importer;
     importer.SetInputFile(inputFileName.expanded());
 
-    // Check for files that match the from= file, except with these file extensions.
-    // If found, replace the data filename to import.  Check upper and lower cases for linux compatibility.
-    QString fileExtensions[] = {"dat", "img", "qub"};
-
-    for (const QString& ext : fileExtensions) {
-      if(inputFileName.setExtension(ext).fileExists()){
-        importer.SetInputFile(inputFileName.setExtension(ext).expanded());
-        break;
-      }
-      else if(inputFileName.setExtension(ext.toUpper()).fileExists()){
-        importer.SetInputFile(inputFileName.setExtension(ext.toUpper()).expanded());
-        break;
+    if (!inputFileName.expanded().contains("/vsi")) {
+      // Check for files that match the from= file, except with these file extensions.
+      // If found, replace the data filename to import.  Check upper and lower cases for linux compatibility.
+      QString fileExtensions[] = {"dat", "img", "qub"};
+      
+      for (const QString& ext : fileExtensions) {
+      	if(inputFileName.setExtension(ext).fileExists()){
+        	importer.SetInputFile(inputFileName.setExtension(ext).expanded());
+        	break;
+      	}
+      	else if(inputFileName.setExtension(ext.toUpper()).fileExists()){
+        	importer.SetInputFile(inputFileName.setExtension(ext.toUpper()).expanded());
+        	break;
+        }
       }
     }
 

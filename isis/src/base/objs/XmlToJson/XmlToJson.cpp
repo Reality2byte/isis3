@@ -7,6 +7,7 @@ find files of those names at the top level of this repository. **/
 
 #include "XmlToJson.h"
 #include "IException.h"
+#include "OriginalXmlLabel.h"
 
 #include <nlohmann/json.hpp>
 #include <iostream>
@@ -33,22 +34,10 @@ namespace Isis {
    * @return json The xml file converted to a json object.
    */
   json xmlToJson(QString xmlFile) {
-    QDomDocument doc("xmlInput");
-    QFile file(xmlFile);
-
-    if (!file.open(QIODevice::ReadOnly)) {
-      QString message = QString("Failed to open file for XML Input: [%1]").arg(xmlFile);
-      throw IException(IException::Io, message, _FILEINFO_);
-    }
-
-    QDomDocument::ParseResult result = doc.setContent(&file);
-    if (!bool(result)) {
-      file.close();
-      QString message = QString("Failed to use file for XML Input: [%1]. %2 at line %3, column %4").arg(xmlFile).arg(result.errorMessage).arg(result.errorLine).arg(result.errorColumn);
-      throw IException(IException::Io, message, _FILEINFO_);
-    }
-
-    file.close();
+    FileName file(xmlFile);
+    OriginalXmlLabel xmlLabel;
+    xmlLabel.readFromXmlFile(file);
+    QDomDocument doc = xmlLabel.ReturnLabels();
 
     return xmlToJson(doc);
   }

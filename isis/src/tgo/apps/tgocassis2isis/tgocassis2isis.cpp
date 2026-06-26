@@ -67,9 +67,10 @@ namespace Isis {
       Cube *outputCube = importer.SetOutputCube(ui.GetCubeName("TO"), att);
 
       QString transRawFile = "TgoCassisInstrument.trn";
-      QFile xmlFile(xmlFileName.expanded());
-      QDomDocument xmlDoc;
-      xmlDoc.setContent(&xmlFile, QDomDocument::ParseOption::UseNamespaceProcessing);
+
+      OriginalXmlLabel xmlLabel;
+      xmlLabel.readFromXmlFile(xmlFileName, true);
+      QDomDocument xmlDoc = xmlLabel.ReturnLabels();
       // If any instances of "Optical_Filter" or "Mission_Area" exist, use PSA .trn file
       QString transExportFile;
       if (!xmlDoc.elementsByTagName("Optical_Filter").isEmpty() &&
@@ -112,10 +113,7 @@ namespace Isis {
       }
 
       FileName outputCubeFileName(ui.GetCubeName("TO"));
-
-      OriginalXmlLabel xmlLabel;
       xmlLabel.readFromXmlFile(xmlFileName);
-
       importer.StartProcess();
 
       // Write out original label before closing the cube
@@ -213,12 +211,14 @@ namespace Isis {
     //Translate the Mapping Group
     try {
       QString missionDir = "$ISISROOT/appdata/translations/";
-      QDomDocument xmlDoc;
-      QFile xmlFile(xmlFileName.expanded());
-      xmlDoc.setContent(&xmlFile, QDomDocument::ParseOption::UseNamespaceProcessing);
+
+      OriginalXmlLabel xmlLabel;
+      xmlLabel.readFromXmlFile(xmlFileName, true);
+      QDomDocument xmlDoc = xmlLabel.ReturnLabels();
+
       // If any instances of "Observing_System_Component" exist, use PSA .trn file
       FileName mapTransFile;
-      if (xmlDoc.elementsByTagName("cart:a_axis_radius").size()){
+      if (xmlDoc.elementsByTagName("cart:a_axis_radius").size()) {
         mapTransFile = FileName(missionDir + "TgoCassisMapping_PSA.trn");
       } else {
         mapTransFile = FileName(missionDir + "TgoCassisMapping.trn");
@@ -250,25 +250,10 @@ namespace Isis {
    *                   updated.
    */
   bool translateMosaicLabel(FileName xmlFileName, Cube *outputCube) {
-    QDomDocument xmlDoc;
 
-    QFile xmlFile(xmlFileName.expanded());
-    if ( !xmlFile.open(QIODevice::ReadOnly) ) {
-      QString msg = "Could not open label file [" + xmlFileName.expanded() +
-                    "].";
-      throw IException(IException::Unknown, msg, _FILEINFO_);
-    }
-
-    QDomDocument::ParseResult result = xmlDoc.setContent(&xmlFile);
-    if ( !bool(result) ) {
-      xmlFile.close();
-      QString msg = "XML read/parse error in file [" + xmlFileName.expanded()
-          + "] at line [" + QString::number(result.errorLine) + "], column [" + QString::number(result.errorColumn)
-          + "], message: " + result.errorMessage;
-      throw IException(IException::Unknown, msg, _FILEINFO_);
-    }
-
-    xmlFile.close();
+    OriginalXmlLabel xmlLabel;
+    xmlLabel.readFromXmlFile(xmlFileName);
+    QDomDocument xmlDoc = xmlLabel.ReturnLabels();
 
     QDomElement inputParentElement = xmlDoc.documentElement();
     if (!inputParentElement.isNull()) {

@@ -24,6 +24,9 @@ find files of those names at the top level of this repository. **/
 #include "Message.h"
 #include "PixelType.h"
 
+#include "cpl_vsi.h"
+
+
 namespace fs = std::filesystem;
 using json = nlohmann::json;
 using ordered_json = nlohmann::ordered_json;
@@ -150,13 +153,38 @@ namespace Isis {
     FileName dataFilename(file);
     GDALDataset *dataset = GDALDataset::FromHandle(GDALOpen(dataFilename.expanded().toStdString().c_str(), GA_ReadOnly));
     if (!dataset) {
+      if (file.contains("/vsi")) {
+        // Attempt to manually read the label via VSI buffer
+        // Needed for Cassini VIMS workflow
+        VSILFILE *fp = VSIFOpenL(file.toUtf8().constData(), "rb");
+        if (fp) {
+          char *buffer = (char *)CPLMalloc(1024 * 1024); // 1 MB
+          size_t nRead = VSIFReadL(buffer, 1, 1024 * 1024 - 1, fp);
+          buffer[nRead] = '\0'; // end sign
+          VSIFCloseL(fp);
+          this->fromString(std::string(buffer));
+          CPLFree(buffer);
+          return;
+        }
+      }
+      
+      // If it's not a VSI file or VSI open failed, then throw the error
       QString msg = "Failed opening GDALDataset from [" + dataFilename.name() + "]";
       throw IException(IException::Programmer, msg, _FILEINFO_);
     }
 
-    CPLStringList metadata = CPLStringList(dataset->GetMetadata("json:ISIS3"), false);
+    CPLStringList metadataDomains = CPLStringList(dataset->GetMetadataDomainList(), false);
+    CPLStringList metadata;
+    const char* domainIsis = "json:ISIS3";
+    const char* domainPds = "json:PDS";
+    if (CSLFindString(metadataDomains.List(), domainIsis) != -1) {
+      metadata = CPLStringList(dataset->GetMetadata(domainIsis), false);
+    } 
+    else if (CSLFindString(metadataDomains.List(), domainPds) != -1) {
+      metadata = CPLStringList(dataset->GetMetadata(domainPds), false);
+    }
 
-    if (metadata[0] != nullptr) {
+    if (metadata.Count() > 0 && metadata[0] != nullptr) {
       const char *metadataJsonString = metadata[0];
       nlohmann::ordered_json metadataAsJson = nlohmann::ordered_json::parse(metadataJsonString);
       readObject(*this, metadataAsJson);
@@ -190,7 +218,7 @@ namespace Isis {
       this->addObject(isiscube);
     }
 
-    if (dataset->GetSpatialRef() && !(this->findObject("IsisCube").hasGroup("Mapping"))) {
+    if (dataset->GetSpatialRef() && this->hasObject("IsisCube") && !(this->findObject("IsisCube").hasGroup("Mapping"))) {
       char ** projStr = new char*[1];
       const OGRSpatialReference &oSRS = *dataset->GetSpatialRef();
       oSRS.exportToProj4(projStr);
